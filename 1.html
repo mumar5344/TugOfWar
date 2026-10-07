@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Tug-of-War</title>
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        h1 { margin-bottom: 5px; text-transform: uppercase; letter-spacing: 2px; color: #38bdf8; }
+        p { color: #94a3b8; margin-top: 0; margin-bottom: 20px; }
+        
+        .game-container {
+            width: 80%;
+            max-width: 600px;
+            background: #1e293b;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            text-align: center;
+            border: 1px solid #334155;
+        }
+
+        .track {
+            position: relative;
+            height: 30px;
+            background: #0f172a;
+            border-radius: 15px;
+            margin: 40px 0;
+            border: 2px solid #475569;
+        }
+
+        .flag {
+            position: absolute;
+            top: -5px;
+            left: 50%;
+            width: 10px;
+            height: 36px;
+            background: #f43f5e;
+            border-radius: 5px;
+            transform: translateX(-50%);
+            transition: left 0.1s ease-out;
+            box-shadow: 0 0 10px #f43f5e;
+        }
+
+        .scoreboard {
+            display: flex;
+            justify-content: space-between;
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+
+        .player1 { color: #38bdf8; }
+        .player2 { color: #facc15; }
+
+        .controls-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9rem;
+            color: #64748b;
+            background: #0f172a;
+            padding: 10px;
+            border-radius: 8px;
+        }
+
+        .btn {
+            background: #38bdf8;
+            color: #0f172a;
+            border: none;
+            padding: 10px 20px;
+            font-size: 1rem;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #0ea5e9; }
+        
+        #winner-msg {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin: 15px 0;
+            min-height: 40px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="game-container">
+        <h1>Neon Tug-of-War</h1>
+        <p>Melt your keyboard to pull the marker to your side!</p>
+
+        <div class="scoreboard">
+            <span class="player1">Player 1 (A Key): <span id="p1-score">0</span></span>
+            <span class="player2">Player 2 (L Key): <span id="p2-score">0</span></span>
+        </div>
+
+        <div id="winner-msg">Press Start to Play</div>
+
+        <div class="track">
+            <div class="flag" id="flag"></div>
+        </div>
+
+        <div class="controls-info">
+            <span>P1: Mash <strong>'A'</strong></span>
+            <span>P2: Mash <strong>'L'</strong></span>
+        </div>
+
+        <button class="btn" id="start-btn" onclick="startGame()">Start Battle</button>
+    </div>
+
+    <script>
+        let position = 50; // Percentage from 0 to 100
+        let gameActive = false;
+        let p1Wins = 0;
+        let p2Wins = 0;
+
+        const flag = document.getElementById('flag');
+        const winnerMsg = document.getElementById('winner-msg');
+        const startBtn = document.getElementById('start-btn');
+        const p1ScoreElem = document.getElementById('p1-score');
+        const p2ScoreElem = document.getElementById('p2-score');
+
+        function startGame() {
+            position = 50;
+            flag.style.left = position + '%';
+            gameActive = true;
+            winnerMsg.textContent = "MASH!";
+            winnerMsg.style.color = "#f8fafc";
+            startBtn.style.display = "none";
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (!gameActive) return;
+
+            if (e.key === 'a' || e.key === 'A') {
+                position -= 1.5; // P1 pulls left
+            } else if (e.key === 'l' || e.key === 'L') {
+                position += 1.5; // P2 pulls right
+            }
+
+            // Boundary checks
+            if (position <= 0) {
+                position = 0;
+                endGame("Player 1 Wins! 💙");
+                p1Wins++;
+                p1ScoreElem.textContent = p1Wins;
+            } else if (position >= 100) {
+                position = 100;
+                endGame("Player 2 Wins! 💛");
+                p2Wins++;
+                p2ScoreElem.textContent = p2Wins;
+            }
+
+            flag.style.left = position + '%';
+        });
+
+        function endGame(message) {
+            gameActive = false;
+            winnerMsg.textContent = message;
+            winnerMsg.style.color = position === 0 ? "#38bdf8" : "#facc15";
+            startBtn.style.display = "inline-block";
+            startBtn.textContent = "Play Again";
+        }
+    </script>
+</body>
+</html>
