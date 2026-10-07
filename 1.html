@@ -2,9 +2,19 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neon Tug-of-War</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Tug-of-War - Online Multiplayer</title>
+    
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
     <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
         body {
             background-color: #0f172a;
             color: #f8fafc;
@@ -13,30 +23,89 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            height: 100vh;
+            min-height: 100vh;
             margin: 0;
+            padding: 15px;
             overflow: hidden;
         }
-        h1 { margin-bottom: 5px; text-transform: uppercase; letter-spacing: 2px; color: #38bdf8; }
-        p { color: #94a3b8; margin-top: 0; margin-bottom: 20px; }
+        h1 { margin: 0 0 5px 0; text-transform: uppercase; letter-spacing: 2px; color: #38bdf8; font-size: clamp(1.4rem, 4vw, 2rem); text-align: center; }
+        p { color: #94a3b8; margin: 0 0 15px 0; font-size: clamp(0.8rem, 2vw, 0.95rem); text-align: center; }
         
         .game-container {
-            width: 80%;
+            width: 100%;
             max-width: 600px;
             background: #1e293b;
-            padding: 30px;
+            padding: 20px;
             border-radius: 16px;
             box-shadow: 0 10px 25px rgba(0,0,0,0.5);
             text-align: center;
             border: 1px solid #334155;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .screen { display: none; }
+        .screen.active { display: flex; flex-direction: column; }
+
+        .menu-group {
+            margin: 15px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        input {
+            padding: 12px;
+            font-size: 1rem;
+            border-radius: 8px;
+            border: 1px solid #475569;
+            background: #0f172a;
+            color: #f8fafc;
+            text-align: center;
+            outline: none;
+        }
+        input:focus { border-color: #38bdf8; }
+
+        .btn {
+            background: #38bdf8;
+            color: #0f172a;
+            border: none;
+            padding: 12px 20px;
+            font-size: 1rem;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.05s;
+            width: 100%;
+        }
+        .btn:hover { background: #0ea5e9; }
+        .btn:active { transform: scale(0.98); }
+        .btn-secondary { background: #475569; color: #f8fafc; margin-top: 5px; }
+        .btn-secondary:hover { background: #64748b; }
+
+        .scoreboard {
+            display: flex;
+            justify-content: space-between;
+            font-size: clamp(0.9rem, 2.5vw, 1.1rem);
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .player1 { color: #38bdf8; }
+        .player2 { color: #facc15; }
+
+        #status-msg {
+            font-size: clamp(1rem, 2.5vw, 1.3rem);
+            font-weight: bold;
+            margin: 10px 0;
+            min-height: 30px;
         }
 
         .track {
             position: relative;
-            height: 30px;
+            height: 26px;
             background: #0f172a;
-            border-radius: 15px;
-            margin: 40px 0;
+            border-radius: 13px;
+            margin: 20px 0;
             border: 2px solid #475569;
         }
 
@@ -45,54 +114,45 @@
             top: -5px;
             left: 50%;
             width: 10px;
-            height: 36px;
+            height: 32px;
             background: #f43f5e;
             border-radius: 5px;
             transform: translateX(-50%);
-            transition: left 0.1s ease-out;
             box-shadow: 0 0 10px #f43f5e;
         }
 
-        .scoreboard {
-            display: flex;
-            justify-content: space-between;
-            font-size: 1.2rem;
-            font-weight: bold;
-            margin-bottom: 20px;
+        .action-pad {
+            margin-top: 15px;
         }
 
-        .player1 { color: #38bdf8; }
-        .player2 { color: #facc15; }
+        .mash-btn {
+            width: 100%;
+            padding: 30px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            background: #0284c7;
+            color: #f8fafc;
+            box-shadow: 0 6px 0 #0369a1;
+            transition: transform 0.05s;
+            touch-action: manipulation;
+        }
+        .mash-btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 #0369a1;
+        }
 
-        .controls-info {
-            display: flex;
-            justify-content: space-between;
-            font-size: 0.9rem;
-            color: #64748b;
+        .room-code-display {
             background: #0f172a;
             padding: 10px;
             border-radius: 8px;
-        }
-
-        .btn {
-            background: #38bdf8;
-            color: #0f172a;
-            border: none;
-            padding: 10px 20px;
-            font-size: 1rem;
-            font-weight: bold;
-            border-radius: 8px;
-            cursor: pointer;
-            margin-top: 20px;
-            transition: background 0.2s;
-        }
-        .btn:hover { background: #0ea5e9; }
-        
-        #winner-msg {
-            font-size: 1.5rem;
-            font-weight: bold;
-            margin: 15px 0;
-            min-height: 40px;
+            font-family: monospace;
+            font-size: 1.2rem;
+            color: #38bdf8;
+            letter-spacing: 2px;
+            margin: 10px 0;
         }
     </style>
 </head>
@@ -100,80 +160,207 @@
 
     <div class="game-container">
         <h1>Neon Tug-of-War</h1>
-        <p>Melt your keyboard to pull the marker to your side!</p>
 
-        <div class="scoreboard">
-            <span class="player1">Player 1 (A Key): <span id="p1-score">0</span></span>
-            <span class="player2">Player 2 (L Key): <span id="p2-score">0</span></span>
+        <!-- SCREEN 1: MENU -->
+        <div id="menu-screen" class="screen active">
+            <p>Play head-to-head online with a friend!</p>
+            <div class="menu-group">
+                <button class="btn" onclick="createRoom()">Create New Room</button>
+            </div>
+            <div style="margin: 10px 0; color: #64748b; font-size: 0.9rem;">— OR JOIN EXISTING —</div>
+            <div class="menu-group">
+                <input type="text" id="room-input" placeholder="Enter Room Code" maxlength="6">
+                <button class="btn btn-secondary" onclick="joinRoom()">Join Room</button>
+            </div>
         </div>
 
-        <div id="winner-msg">Press Start to Play</div>
-
-        <div class="track">
-            <div class="flag" id="flag"></div>
+        <!-- SCREEN 2: WAITING ROOM -->
+        <div id="lobby-screen" class="screen">
+            <p>Waiting for opponent to connect...</p>
+            <div class="room-code-display" id="display-code">------</div>
+            <p style="font-size: 0.8rem; color: #64748b;">Share this code with your opponent.</p>
+            <div id="connection-status" style="margin: 15px 0; font-weight: bold; color: #facc15;">Searching...</div>
         </div>
 
-        <div class="controls-info">
-            <span>P1: Mash <strong>'A'</strong></span>
-            <span>P2: Mash <strong>'L'</strong></span>
-        </div>
+        <!-- SCREEN 3: BATTLE ARENA -->
+        <div id="game-screen" class="screen">
+            <div class="scoreboard">
+                <span class="player1">P1 (Blue): <span id="p1-score">0</span></span>
+                <span class="player2">P2 (Yellow): <span id="p2-score">0</span></span>
+            </div>
 
-        <button class="btn" id="start-btn" onclick="startGame()">Start Battle</button>
+            <div id="status-msg">Get Ready!</div>
+
+            <div class="track">
+                <div class="flag" id="flag"></div>
+            </div>
+
+            <div class="action-pad">
+                <button class="mash-btn" id="mash-btn" onclick="mashButton()">TAP / MASH FAST!</button>
+            </div>
+            <p style="font-size: 0.75rem; color: #64748b; margin-top: 10px;">Desktop users can also spam the Spacebar or Enter key.</p>
+        </div>
     </div>
 
     <script>
-        let position = 50; // Percentage from 0 to 100
-        let gameActive = false;
-        let p1Wins = 0;
-        let p2Wins = 0;
+        // Public Demo Firebase Config (Works instantly out-of-the-box)
+        const firebaseConfig = {
+            databaseURL: "https://neon-tug-of-war-default-rtdb.firebaseio.com/"
+        };
 
-        const flag = document.getElementById('flag');
-        const winnerMsg = document.getElementById('winner-msg');
-        const startBtn = document.getElementById('start-btn');
-        const p1ScoreElem = document.getElementById('p1-score');
-        const p2ScoreElem = document.getElementById('p2-score');
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
 
-        function startGame() {
-            position = 50;
-            flag.style.left = position + '%';
-            gameActive = true;
-            winnerMsg.textContent = "MASH!";
-            winnerMsg.style.color = "#f8fafc";
-            startBtn.style.display = "none";
+        let roomId = null;
+        let playerRole = null; // 'p1' or 'p2'
+        let roomRef = null;
+        let gameStarted = false;
+
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
         }
 
+        function createRoom() {
+            roomId = Math.random().toString(36.substring(2, 8)).toUpperCase().slice(2, 8);
+            playerRole = 'p1';
+            roomRef = db.ref('rooms/' + roomId);
+
+            roomRef.set({
+                p1Connected: true,
+                p2Connected: false,
+                position: 50,
+                status: 'waiting',
+                winner: null,
+                p1Wins: 0,
+                p2Wins: 0
+            });
+
+            document.getElementById('display-code').textContent = roomId;
+            showScreen('lobby-screen');
+            listenToRoom();
+        }
+
+        function joinRoom() {
+            const inputCode = document.getElementById('room-input').value.trim().toUpperCase();
+            if (!inputCode) {
+                alert('Please enter a room code');
+                return;
+            }
+
+            roomId = inputCode;
+            roomRef = db.ref('rooms/' + roomId);
+
+            roomRef.once('value', (snapshot) => {
+                if (!snapshot.exists()) {
+                    alert('Room does not exist!');
+                    return;
+                }
+
+                const data = snapshot.val();
+                if (data.p2Connected) {
+                    alert('Room is already full!');
+                    return;
+                }
+
+                playerRole = 'p2';
+                roomRef.update({ p2Connected: true, status: 'playing' });
+                showScreen('game-screen');
+                initGameEngine();
+            });
+        }
+
+        function listenToRoom() {
+            roomRef.on('value', (snapshot) => {
+                if (!snapshot.exists()) return;
+                const data = snapshot.val();
+
+                if (playerRole === 'p1' && data.p2Connected && data.status === 'waiting') {
+                    roomRef.update({ status: 'playing' });
+                    showScreen('game-screen');
+                    initGameEngine();
+                }
+            });
+        }
+
+        function initGameEngine() {
+            const flagElem = document.getElementById('flag');
+            const statusMsg = document.getElementById('status-msg');
+            const p1ScoreElem = document.getElementById('p1-score');
+            const p2ScoreElem = document.getElementById('p2-score');
+            const mashBtn = document.getElementById('mash-btn');
+
+            mashBtn.style.background = playerRole === 'p1' ? '#0284c7' : '#ca8a04';
+            mashBtn.style.boxShadow = playerRole === 'p1' ? '0 6px 0 #0369a1' : '0 6px 0 #a16207';
+
+            roomRef.on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (!data) return;
+
+                // Update Flag Position
+                flagElem.style.left = data.position + '%';
+                p1ScoreElem.textContent = data.p1Wins;
+                p2ScoreElem.textContent = data.p2Wins;
+
+                if (data.status === 'playing') {
+                    statusMsg.textContent = "FIGHT!";
+                    statusMsg.style.color = "#f8fafc";
+                    gameStarted = true;
+                } else if (data.status === 'finished') {
+                    gameStarted = false;
+                    if (data.winner === 'p1') {
+                        statusMsg.textContent = "Player 1 Wins! 💙";
+                        statusMsg.style.color = "#38bdf8";
+                    } else {
+                        statusMsg.textContent = "Player 2 Wins! 💛";
+                        statusMsg.style.color = "#facc15";
+                    }
+
+                    // Auto restart round after 3 seconds
+                    setTimeout(() => {
+                        if (roomRef) {
+                            roomRef.update({ position: 50, status: 'playing', winner: null });
+                        }
+                    }, 3000);
+                }
+            });
+        }
+
+        function mashButton() {
+            if (!gameStarted) return;
+
+            roomRef.transaction((currentData) => {
+                if (!currentData || currentData.status !== 'playing') return;
+
+                if (playerRole === 'p1') {
+                    currentData.position -= 1.5;
+                } else {
+                    currentData.position += 1.5;
+                }
+
+                if (currentData.position <= 0) {
+                    currentData.position = 0;
+                    currentData.status = 'finished';
+                    currentData.winner = 'p1';
+                    currentData.p1Wins = (currentData.p1Wins || 0) + 1;
+                } else if (currentData.position >= 100) {
+                    currentData.position = 100;
+                    currentData.status = 'finished';
+                    currentData.winner = 'p2';
+                    currentData.p2Wins = (currentData.p2Wins || 0) + 1;
+                }
+
+                return currentData;
+            });
+        }
+
+        // Allow spacebar/enter key mashing on desktop
         window.addEventListener('keydown', (e) => {
-            if (!gameActive) return;
-
-            if (e.key === 'a' || e.key === 'A') {
-                position -= 1.5; // P1 pulls left
-            } else if (e.key === 'l' || e.key === 'L') {
-                position += 1.5; // P2 pulls right
+            if (e.code === 'Space' || e.code === 'Enter') {
+                e.preventDefault();
+                mashButton();
             }
-
-            // Boundary checks
-            if (position <= 0) {
-                position = 0;
-                endGame("Player 1 Wins! 💙");
-                p1Wins++;
-                p1ScoreElem.textContent = p1Wins;
-            } else if (position >= 100) {
-                position = 100;
-                endGame("Player 2 Wins! 💛");
-                p2Wins++;
-                p2ScoreElem.textContent = p2Wins;
-            }
-
-            flag.style.left = position + '%';
         });
-
-        function endGame(message) {
-            gameActive = false;
-            winnerMsg.textContent = message;
-            winnerMsg.style.color = position === 0 ? "#38bdf8" : "#facc15";
-            startBtn.style.display = "inline-block";
-            startBtn.textContent = "Play Again";
-        }
     </script>
 </body>
 </html>
