@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Tug-of-War - Online Multiplayer</title>
+    <title>Neon Tug-of-War - Online P2P</title>
     
-    <!-- Firebase SDKs -->
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <!-- PeerJS CDN for zero-setup P2P multiplayer -->
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 
     <style>
         * {
@@ -80,7 +79,7 @@
         }
         .btn:hover { background: #0ea5e9; }
         .btn:active { transform: scale(0.98); }
-        .btn-secondary { background: #475569; color: #f8fafc; margin-top: 5px; }
+        .btn-secondary { background: #475569; color: #f8fafc; }
         .btn-secondary:hover { background: #64748b; }
 
         .scoreboard {
@@ -121,10 +120,6 @@
             box-shadow: 0 0 10px #f43f5e;
         }
 
-        .action-pad {
-            margin-top: 15px;
-        }
-
         .mash-btn {
             width: 100%;
             padding: 30px;
@@ -153,6 +148,7 @@
             color: #38bdf8;
             letter-spacing: 2px;
             margin: 10px 0;
+            word-break: break-all;
         }
     </style>
 </head>
@@ -163,58 +159,58 @@
 
         <!-- SCREEN 1: MENU -->
         <div id="menu-screen" class="screen active">
-            <p>Play head-to-head online with a friend!</p>
+            <p>P2P Direct Online Multiplayer</p>
             <div class="menu-group">
-                <button class="btn" onclick="createRoom()">Create New Room</button>
+                <button class="btn" onclick="createRoom()">Create Room (Host)</button>
             </div>
-            <div style="margin: 10px 0; color: #64748b; font-size: 0.9rem;">— OR JOIN EXISTING —</div>
+            <div style="margin: 10px 0; color: #64748b; font-size: 0.9rem;">— OR JOIN —</div>
             <div class="menu-group">
-                <input type="text" id="room-input" placeholder="Enter Room Code" maxlength="6">
+                <input type="text" id="room-input" placeholder="Paste Room Code Here">
                 <button class="btn btn-secondary" onclick="joinRoom()">Join Room</button>
             </div>
         </div>
 
-        <!-- SCREEN 2: WAITING ROOM -->
+        <!-- SCREEN 2: LOBBY -->
         <div id="lobby-screen" class="screen">
-            <p>Waiting for opponent to connect...</p>
-            <div class="room-code-display" id="display-code">------</div>
-            <p style="font-size: 0.8rem; color: #64748b;">Share this code with your opponent.</p>
-            <div id="connection-status" style="margin: 15px 0; font-weight: bold; color: #facc15;">Searching...</div>
+            <p>Share this code with your opponent:</p>
+            <div class="room-code-display" id="display-code">Generating...</div>
+            <div id="connection-status" style="margin: 15px 0; font-weight: bold; color: #facc15;">Waiting for opponent to connect...</div>
         </div>
 
-        <!-- SCREEN 3: BATTLE ARENA -->
+        <!-- SCREEN 3: GAME -->
         <div id="game-screen" class="screen">
             <div class="scoreboard">
                 <span class="player1">P1 (Blue): <span id="p1-score">0</span></span>
                 <span class="player2">P2 (Yellow): <span id="p2-score">0</span></span>
             </div>
 
-            <div id="status-msg">Get Ready!</div>
+            <div id="status-msg">FIGHT!</div>
 
             <div class="track">
                 <div class="flag" id="flag"></div>
             </div>
 
-            <div class="action-pad">
+            <div style="margin-top: 15px;">
                 <button class="mash-btn" id="mash-btn" onclick="mashButton()">TAP / MASH FAST!</button>
             </div>
-            <p style="font-size: 0.75rem; color: #64748b; margin-top: 10px;">Desktop users can also spam the Spacebar or Enter key.</p>
+            <p style="font-size: 0.75rem; color: #64748b; margin-top: 10px;">You can also press Spacebar or Enter.</p>
         </div>
     </div>
 
     <script>
-        // Public Demo Firebase Config (Works instantly out-of-the-box)
-        const firebaseConfig = {
-            databaseURL: "https://neon-tug-of-war-default-rtdb.firebaseio.com/"
-        };
+        let peer = null;
+        let conn = null;
+        let role = null; // 'p1' (host) or 'p2' (guest)
+        let position = 50;
+        let p1Wins = 0;
+        let p2Wins = 0;
+        let gameActive = false;
 
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
-
-        let roomId = null;
-        let playerRole = null; // 'p1' or 'p2'
-        let roomRef = null;
-        let gameStarted = false;
+        const flagElem = document.getElementById('flag');
+        const statusMsg = document.getElementById('status-msg');
+        const p1ScoreElem = document.getElementById('p1-score');
+        const p2ScoreElem = document.getElementById('p2-score');
+        const mashBtn = document.getElementById('mash-btn');
 
         function showScreen(screenId) {
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -222,145 +218,129 @@
         }
 
         function createRoom() {
-            roomId = Math.random().toString(36.substring(2, 8)).toUpperCase().slice(2, 8);
-            playerRole = 'p1';
-            roomRef = db.ref('rooms/' + roomId);
+            role = 'p1';
+            peer = new Peer();
 
-            roomRef.set({
-                p1Connected: true,
-                p2Connected: false,
-                position: 50,
-                status: 'waiting',
-                winner: null,
-                p1Wins: 0,
-                p2Wins: 0
+            peer.on('open', (id) => {
+                document.getElementById('display-code').textContent = id;
+                showScreen('lobby-screen');
             });
 
-            document.getElementById('display-code').textContent = roomId;
-            showScreen('lobby-screen');
-            listenToRoom();
+            peer.on('connection', (connection) => {
+                conn = connection;
+                setupConnection();
+                showScreen('game-screen');
+                startGame();
+            });
         }
 
         function joinRoom() {
-            const inputCode = document.getElementById('room-input').value.trim().toUpperCase();
-            if (!inputCode) {
+            const code = document.getElementById('room-input').value.trim();
+            if (!code) {
                 alert('Please enter a room code');
                 return;
             }
 
-            roomId = inputCode;
-            roomRef = db.ref('rooms/' + roomId);
+            role = 'p2';
+            peer = new Peer();
 
-            roomRef.once('value', (snapshot) => {
-                if (!snapshot.exists()) {
-                    alert('Room does not exist!');
-                    return;
-                }
-
-                const data = snapshot.val();
-                if (data.p2Connected) {
-                    alert('Room is already full!');
-                    return;
-                }
-
-                playerRole = 'p2';
-                roomRef.update({ p2Connected: true, status: 'playing' });
+            peer.on('open', () => {
+                conn = peer.connect(code);
+                setupConnection();
                 showScreen('game-screen');
-                initGameEngine();
+                statusMsg.textContent = "Connected! Waiting for host...";
             });
         }
 
-        function listenToRoom() {
-            roomRef.on('value', (snapshot) => {
-                if (!snapshot.exists()) return;
-                const data = snapshot.val();
-
-                if (playerRole === 'p1' && data.p2Connected && data.status === 'waiting') {
-                    roomRef.update({ status: 'playing' });
-                    showScreen('game-screen');
-                    initGameEngine();
+        function setupConnection() {
+            conn.on('data', (data) => {
+                if (data.type === 'STATE') {
+                    position = data.position;
+                    p1Wins = data.p1Wins;
+                    p2Wins = data.p2Wins;
+                    updateUI();
+                } else if (data.type === 'WIN') {
+                    position = data.winner === 'p1' ? 0 : 100;
+                    if (data.winner === 'p1') p1Wins++; else p2Wins++;
+                    updateUI();
+                    endGame(data.winner === 'p1' ? "Player 1 Wins! 💙" : "Player 2 Wins! 💛");
                 }
             });
-        }
 
-        function initGameEngine() {
-            const flagElem = document.getElementById('flag');
-            const statusMsg = document.getElementById('status-msg');
-            const p1ScoreElem = document.getElementById('p1-score');
-            const p2ScoreElem = document.getElementById('p2-score');
-            const mashBtn = document.getElementById('mash-btn');
-
-            mashBtn.style.background = playerRole === 'p1' ? '#0284c7' : '#ca8a04';
-            mashBtn.style.boxShadow = playerRole === 'p1' ? '0 6px 0 #0369a1' : '0 6px 0 #a16207';
-
-            roomRef.on('value', (snapshot) => {
-                const data = snapshot.val();
-                if (!data) return;
-
-                // Update Flag Position
-                flagElem.style.left = data.position + '%';
-                p1ScoreElem.textContent = data.p1Wins;
-                p2ScoreElem.textContent = data.p2Wins;
-
-                if (data.status === 'playing') {
+            conn.on('open', () => {
+                if (role === 'p2') {
+                    gameActive = true;
                     statusMsg.textContent = "FIGHT!";
-                    statusMsg.style.color = "#f8fafc";
-                    gameStarted = true;
-                } else if (data.status === 'finished') {
-                    gameStarted = false;
-                    if (data.winner === 'p1') {
-                        statusMsg.textContent = "Player 1 Wins! 💙";
-                        statusMsg.style.color = "#38bdf8";
-                    } else {
-                        statusMsg.textContent = "Player 2 Wins! 💛";
-                        statusMsg.style.color = "#facc15";
-                    }
-
-                    // Auto restart round after 3 seconds
-                    setTimeout(() => {
-                        if (roomRef) {
-                            roomRef.update({ position: 50, status: 'playing', winner: null });
-                        }
-                    }, 3000);
                 }
             });
+        }
+
+        function startGame() {
+            gameActive = true;
+            position = 50;
+            updateUI();
+            statusMsg.textContent = "FIGHT!";
+        }
+
+        function updateUI() {
+            flagElem.style.left = position + '%';
+            p1ScoreElem.textContent = p1Wins;
+            p2ScoreElem.textContent = p2Wins;
         }
 
         function mashButton() {
-            if (!gameStarted) return;
+            if (!gameActive) return;
 
-            roomRef.transaction((currentData) => {
-                if (!currentData || currentData.status !== 'playing') return;
+            if (role === 'p1') {
+                position -= 2;
+            } else {
+                position += 2;
+            }
 
-                if (playerRole === 'p1') {
-                    currentData.position -= 1.5;
-                } else {
-                    currentData.position += 1.5;
+            updateUI();
+
+            if (position <= 0) {
+                position = 0;
+                p1Wins++;
+                updateUI();
+                endGame("Player 1 Wins! 💙");
+                if (conn && conn.open) conn.send({ type: 'WIN', winner: 'p1' });
+                setTimeout(resetRound, 2500);
+            } else if (position >= 100) {
+                position = 100;
+                p2Wins++;
+                updateUI();
+                endGame("Player 2 Wins! 💛");
+                if (conn && conn.open) conn.send({ type: 'WIN', winner: 'p2' });
+                setTimeout(resetRound, 2500);
+            } else {
+                if (conn && conn.open) {
+                    conn.send({ type: 'STATE', position, p1Wins, p2Wins });
                 }
-
-                if (currentData.position <= 0) {
-                    currentData.position = 0;
-                    currentData.status = 'finished';
-                    currentData.winner = 'p1';
-                    currentData.p1Wins = (currentData.p1Wins || 0) + 1;
-                } else if (currentData.position >= 100) {
-                    currentData.position = 100;
-                    currentData.status = 'finished';
-                    currentData.winner = 'p2';
-                    currentData.p2Wins = (currentData.p2Wins || 0) + 1;
-                }
-
-                return currentData;
-            });
+            }
         }
 
-        // Allow spacebar/enter key mashing on desktop
+        function resetRound() {
+            position = 50;
+            updateUI();
+            gameActive = true;
+            statusMsg.textContent = "FIGHT!";
+        }
+
+        function endGame(msg) {
+            gameActive = false;
+            statusMsg.textContent = msg;
+        }
+
         window.addEventListener('keydown', (e) => {
             if (e.code === 'Space' || e.code === 'Enter') {
                 e.preventDefault();
                 mashButton();
             }
         });
+
+        // Style button color based on role
+        mashBtn.style.background = '#0284c7';
     </script>
 </body>
 </html>
